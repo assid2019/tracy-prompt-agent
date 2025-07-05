@@ -1,14 +1,24 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import sqlite3
 import os
 from openai import OpenAI
-from openai import error as openai_error
+from openai import (
+    AuthenticationError,
+    BadRequestError,
+    PermissionDeniedError,
+    NotFoundError,
+    UnprocessableEntityError,
+    RateLimitError,
+    APIConnectionError,
+    Timeout,
+    APIStatusError,
+)
 
 app = FastAPI()
 
-# OpenRouter-compatible
+# ✅ Connect to OpenRouter (OpenAI-compatible)
 client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),
     base_url="https://openrouter.ai/api/v1"
@@ -19,26 +29,32 @@ class AgentRequest(BaseModel):
     task_type: str
     input_text: Optional[str] = None
 
-def retrieve_prompt(user, task_type):
+def retrieve_prompt(user: str, task_type: str) -> str:
     conn = sqlite3.connect("tracy_memory.db")
     c = conn.cursor()
-    c.execute("""
+    c.execute(
+        """
         SELECT prompt FROM prompts
-        WHERE user=? AND task_type=?
+        WHERE user = ? AND task_type = ?
         ORDER BY version DESC
         LIMIT 1
-    """, (user, task_type))
+        """,
+        (user, task_type)
+    )
     row = c.fetchone()
     conn.close()
     return row[0] if row else "You are a helpful Tracy agent."
 
-def log_response(user, task_type, response):
+def log_response(user: str, task_type: str, response: str):
     conn = sqlite3.connect("tracy_memory.db")
     c = conn.cursor()
-    c.execute("""
+    c.execute(
+        """
         INSERT INTO responses (user, task_type, response)
         VALUES (?, ?, ?)
-    """, (user, task_type, response))
+        """,
+        (user, task_type, response)
+    )
     conn.commit()
     conn.close()
 
@@ -55,14 +71,28 @@ async def prompt_agent(req: AgentRequest):
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": req.input_text or ""}
             ],
-            extra_headers={
-                "HTTP-Referer": "https://your-site.com",
-                "X-Title": "tracy-prompt-agent"
-            }
         )
         result = completion.choices[0].message.content
         log_response(req.user, req.task_type, result)
         return {"result": result}
-    except openai_error.OpenAIError as e:
-        return {"error": str(e)}
 
+    except AuthenticationError as e:
+        raise HTTPException(status_code=401, detail="Authentication failed. Check your API key.")
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail="Permission denied. Check your model or account limits.")
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail="Model or resource not found.")
+    except BadRequestError as e:
+        raise HTTPException(status_code=400, detail=f"Bad request: {str(e)}")
+    except UnprocessableEntityError as e:
+        raise HTTPException(status_code=422, detail="The request could not be processed by the model.")
+    except RateLimitError as e:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Slow down.")
+    except APIConnectionError as e:
+        raise HTTPException(status_code=503, detail="Connection to API failed.")
+    except Timeout as e:
+        raise HTTPException(status_code=504, detail="The API request timed out.")
+    except APIStatusError as e:
+        raise HTTPException(status_code=502, detail="API server returned an error response.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
