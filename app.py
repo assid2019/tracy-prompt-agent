@@ -9,8 +9,10 @@ app = FastAPI()
 
 # Setup OpenRouter client
 client = OpenAI(
-    api_key=os.environ["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"],
+    api_key=os.environ["OPENAI_API_KEY"],
     base_url="https://openrouter.ai/api/v1"
+)
+
 )
 
 class AgentRequest(BaseModel):
@@ -49,4 +51,4 @@ async def prompt_agent(req: AgentRequest):
     )
     result = completion.choices[0].message.content
     log_response(req.user, req.task_type, result)
-    return {"result": result}"
+    return {"result": result}
