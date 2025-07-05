@@ -13,8 +13,6 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1"
 )
 
-)
-
 class AgentRequest(BaseModel):
     user: str
     task_type: str
