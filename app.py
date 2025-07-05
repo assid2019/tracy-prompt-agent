@@ -7,7 +7,7 @@ from openai import OpenAI
 
 app = FastAPI()
 
-# ✅ connect to OpenRouter with DeepSeek
+# connect to OpenRouter with your key
 client = OpenAI(
     api_key=os.environ["OPENAI_API_KEY"],
     base_url="https://openrouter.ai/api/v1"
@@ -49,14 +49,21 @@ async def prompt_agent(req: AgentRequest):
 
     completion = client.chat.completions.create(
         model="deepseek-ai/deepseek-llm-v3",
-        extra_headers={
-            "HTTP-Referer": "https://tracy-prompt-agent.onrender.com",  # optional
-            "X-Title": "Tracy Prompt Agent"  # optional
-        },
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": req.input_text or ""}
-        ]
+        ],
+        # you can add provider routing preferences here:
+        extra_body={
+            "provider": {
+                "sort": "throughput",  # or "price" or "latency"
+                "allow_fallbacks": True
+            }
+        },
+        extra_headers={
+            "HTTP-Referer": "https://tracy-prompt-agent.onrender.com",
+            "X-Title": "Tracy Prompt Agent"
+        }
     )
 
     result = completion.choices[0].message.content
