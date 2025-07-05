@@ -48,7 +48,13 @@ async def prompt_agent(req: AgentRequest):
         prompt += f"\nUser input: {req.input_text}"
 
     completion = client.chat.completions.create(
-        model=model="deepseek/deepseek-chat-v3-0324:free",
+    model="deepseek/deepseek-chat-v3-0324:free",
+    messages=[
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": req.input_text or ""}
+    ]
+)
+
         extra_headers={
             "HTTP-Referer": "https://tracy-prompt-agent.onrender.com",
             "X-Title": "Tracy Prompt Agent"
