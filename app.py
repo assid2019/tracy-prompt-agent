@@ -8,19 +8,17 @@ from openai import error as openai_error
 
 app = FastAPI()
 
-# Connect to OpenRouter-compatible OpenAI client
+# OpenRouter-compatible
 client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),
     base_url="https://openrouter.ai/api/v1"
 )
 
-# Pydantic schema for requests
 class AgentRequest(BaseModel):
     user: str
     task_type: str
     input_text: Optional[str] = None
 
-# Retrieve prompt from SQLite
 def retrieve_prompt(user, task_type):
     conn = sqlite3.connect("tracy_memory.db")
     c = conn.cursor()
@@ -34,7 +32,6 @@ def retrieve_prompt(user, task_type):
     conn.close()
     return row[0] if row else "You are a helpful Tracy agent."
 
-# Log responses to SQLite
 def log_response(user, task_type, response):
     conn = sqlite3.connect("tracy_memory.db")
     c = conn.cursor()
@@ -53,20 +50,19 @@ async def prompt_agent(req: AgentRequest):
 
     try:
         completion = client.chat.completions.create(
-            model="deepseek/deepseek-chat-v3-0324:free",
+            model="deepseek/deepseek-chat-v3",
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": req.input_text or ""}
             ],
             extra_headers={
-                "HTTP-Referer": "https://your-site.com",  # optional
-                "X-Title": "tracy-prompt-agent"           # optional
+                "HTTP-Referer": "https://your-site.com",
+                "X-Title": "tracy-prompt-agent"
             }
         )
         result = completion.choices[0].message.content
         log_response(req.user, req.task_type, result)
         return {"result": result}
     except openai_error.OpenAIError as e:
-        # catch OpenAI/OpenRouter errors
         return {"error": str(e)}
 
